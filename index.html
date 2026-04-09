@@ -3,341 +3,313 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>فحص QR المواعيد (وضع تجريبي)</title>
+    <title>فاحص QR التجريبي (قوي + أوفلاين)</title>
+    <!-- مكتبة jsQR المتخصصة في قراءة الرموز غير الواضحة -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
-        :root {
-            --p: #2563eb; --s: #10b981; --bg: #f1f5f9; --card: #fff;
-            --txt: #0f172a; --brd: #e2e8f0; --err: #ef4444; --warn: #f59e0b;
+        :root { --p:#2563eb; --s:#10b981; --bg:#f8fafc; --card:#fff; --txt:#0f172a; --brd:#e2e8f0; --err:#ef4444; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI',Tahoma,sans-serif; }
+        body { background:var(--bg); min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:16px; color:var(--txt); }
+        .container { width:100%; max-width:480px; }
+        
+        .header { text-align:center; margin-bottom:16px; }
+        .header h1 { font-size:1.3rem; margin-bottom:4px; }
+        .header p { font-size:0.85rem; color:#64748b; }
+        
+        .camera-box {
+            position:relative; width:100%; background:#000; border-radius:16px; overflow:hidden;
+            box-shadow:0 8px 24px rgba(0,0,0,0.12); margin-bottom:16px; aspect-ratio:4/3;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
-        body { background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 16px; }
-
-        .header {
-            width: 100%; max-width: 500px; background: var(--card); padding: 14px 20px;
-            border-radius: 14px; margin-bottom: 16px; display: flex; align-items: center;
-            justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        #video { width:100%; height:100%; object-fit:cover; display:none; }
+        #canvas { display:none; }
+        .overlay {
+            position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+            color:#fff; font-size:0.9rem; background:rgba(0,0,0,0.6); text-align:center; padding:20px;
         }
-        .header h1 { font-size: 1.1rem; color: var(--txt); }
-        .badge {
-            padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
-            background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+        .scan-region {
+            position:absolute; width:60%; height:60%; border:2px solid rgba(255,255,255,0.6);
+            border-radius:12px; box-shadow:0 0 0 100vmax rgba(0,0,0,0.5); pointer-events:none;
+            animation: pulse 2s infinite;
         }
-
-        .scanner-box {
-            width: 100%; max-width: 500px; background: var(--card); border-radius: 16px;
-            overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-bottom: 16px; position: relative;
+        @keyframes pulse { 0%,100%{border-color:rgba(255,255,255,0.6)} 50%{border-color:#fff} }
+        
+        /* ✅ منطقة عرض المحتوى الخام */
+        .raw-box {
+            background:#fff; border:1.5px dashed #cbd5e1; border-radius:12px; padding:14px;
+            margin-bottom:16px; text-align:center; transition:all 0.3s;
         }
-        #video-preview { width: 100%; height: 250px; object-fit: cover; background: #000; display: none; }
-        .scan-overlay {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 200px; height: 200px; border: 3px solid var(--p); border-radius: 12px;
-            box-shadow: 0 0 0 100vmax rgba(0,0,0,0.4); pointer-events: none; display: none;
+        .raw-label { font-size:0.8rem; color:#64748b; margin-bottom:6px; }
+        #raw-content {
+            font-family:'Courier New',monospace; direction:ltr; font-size:0.95rem; color:var(--txt);
+            min-height:24px; word-break:break-all; background:#f8fafc; padding:8px; border-radius:8px;
+            border:1px solid var(--brd);
         }
-        .scan-overlay::after {
-            content: 'وجّه الرمز هنا'; position: absolute; bottom: -30px; left: 50%;
-            transform: translateX(-50%); color: #fff; font-size: 0.85rem; font-weight: 600;
-            background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 6px; white-space: nowrap;
+        .raw-box.active { border-color:var(--s); background:#ecfdf5; }
+        .raw-box.active #raw-content { color:#065f46; background:#fff; border-color:#a7f3d0; }
+        
+        .result-box {
+            background:#fff; border-radius:16px; padding:20px; box-shadow:0 4px 12px rgba(0,0,0,0.06);
+            margin-bottom:16px; display:none; animation: slideUp 0.3s ease;
         }
-
-        .controls { padding: 14px; display: flex; gap: 10px; justify-content: center; border-top: 1px solid var(--brd); }
+        @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        .res-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+        .res-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; }
+        .res-icon.ok { background:#dcfce7; } .res-icon.fail { background:#fee2e2; }
+        .res-title { font-weight:700; } .res-sub { font-size:0.85rem; color:#64748b; }
+        .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+        .info { background:#f8fafc; padding:10px; border-radius:8px; border:1px solid var(--brd); }
+        .info-label { font-size:0.75rem; color:#64748b; } .info-val { font-weight:600; font-size:0.95rem; }
+        .full { grid-column:1/-1; }
+        
+        .controls { display:flex; gap:10px; margin-bottom:20px; }
         .btn {
-            padding: 10px 18px; border: none; border-radius: 10px; font-size: 0.9rem;
-            font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px;
+            flex:1; padding:12px; border:none; border-radius:10px; font-weight:600; cursor:pointer;
+            display:flex; align-items:center; justify-content:center; gap:6px; transition:0.2s;
         }
-        .btn-primary { background: var(--p); color: #fff; }
-        .btn-primary:hover { background: #1d4ed8; }
-        .btn-danger { background: var(--err); color: #fff; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .result-card {
-            width: 100%; max-width: 500px; background: var(--card); border-radius: 16px;
-            padding: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); display: none; animation: slideUp 0.4s ease;
-        }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-        .result-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-        .result-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
-        .result-icon.found { background: #dcfce7; }
-        .result-icon.not-found { background: #fee2e2; }
-        .result-title { font-size: 1.05rem; font-weight: 700; }
-        .result-subtitle { font-size: 0.8rem; color: #64748b; }
-
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .info-item { background: #f8fafc; padding: 12px; border-radius: 10px; border: 1px solid var(--brd); }
-        .info-label { font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
-        .info-value { font-size: 0.95rem; font-weight: 600; color: var(--txt); }
-        .full-width { grid-column: 1 / -1; }
-
-        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; }
-        .st-pending { background: #fef3c7; color: #92400e; }
-        .st-confirmed { background: #dcfce7; color: #166534; }
-        .st-completed { background: #dbeafe; color: #1e40af; }
-
-        .manual-box { width: 100%; max-width: 500px; margin-top: 12px; }
-        .manual-box input {
-            width: 100%; padding: 12px; border: 2px solid var(--brd); border-radius: 12px;
-            font-size: 0.95rem; text-align: center; outline: none;
-        }
-        .manual-box input:focus { border-color: var(--p); }
-
-        .history { width: 100%; max-width: 500px; margin-top: 16px; }
-        .history h3 { font-size: 0.9rem; color: #64748b; margin-bottom: 8px; }
-        .h-item {
-            background: var(--card); padding: 10px 14px; border-radius: 10px; margin-bottom: 8px;
-            display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--brd); font-size: 0.85rem;
-        }
-
-        @media (max-width: 480px) {
-            .info-grid { grid-template-columns: 1fr; }
-            .header h1 { font-size: 1rem; }
-            #video-preview { height: 200px; }
-        }
+        .btn-primary { background:var(--p); color:#fff; } .btn-primary:hover { background:#1d4ed8; }
+        .btn-sec { background:#f1f5f9; color:var(--txt); } .btn-sec:hover { background:#e2e8f0; }
+        .btn:disabled { opacity:0.6; cursor:not-allowed; }
+        
+        .manual { width:100%; padding:12px; border:1.5px solid var(--brd); border-radius:10px; font-size:0.95rem; outline:none; }
+        .manual:focus { border-color:var(--p); }
+        
+        .history { margin-top:16px; }
+        .h-item { background:#fff; padding:10px; border-radius:8px; margin-bottom:8px; border:1px solid var(--brd); font-size:0.85rem; display:flex; justify-content:space-between; }
+        
+        @media(max-width:400px) { .info-grid{grid-template-columns:1fr} }
     </style>
 </head>
 <body>
-
-    <div class="header">
-        <h1>📷 فحص QR المواعيد</h1>
-        <span class="badge" id="mode-badge">🧪 وضع تجريبي (أوفلاين)</span>
-    </div>
-
-    <div class="scanner-box">
-        <video id="video-preview" autoplay playsinline></video>
-        <div class="scan-overlay" id="scan-overlay"></div>
-        <div id="scan-status" style="padding:16px; text-align:center; color:#64748b; font-size:0.9rem;">
-            اضغط "فتح الكاميرا" لبدء المسح
+    <div class="container">
+        <div class="header">
+            <h1>📷 فاحص QR التجريبي</h1>
+            <p>يقرأ حتى الرموز غير الواضحة ويعرض المحتوى فوراً</p>
         </div>
-        <div class="controls">
-            <button class="btn btn-primary" id="btn-start" onclick="startCamera()">📷 فتح الكاميرا</button>
-            <button class="btn btn-danger" id="btn-stop" onclick="stopCamera()" style="display:none">⏹️ إيقاف</button>
-        </div>
-    </div>
 
-    <div class="result-card" id="result-card">
-        <div class="result-header">
-            <div class="result-icon" id="res-icon"></div>
-            <div>
-                <div class="result-title" id="res-title"></div>
-                <div class="result-subtitle" id="res-sub"></div>
+        <div class="camera-box">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div class="overlay" id="camera-placeholder">
+                <div>
+                    <div style="font-size:2rem;margin-bottom:8px;">📸</div>
+                    <div>اضغط "فتح الكاميرا" لبدء المسح</div>
+                </div>
             </div>
+            <div class="scan-region" id="scan-region" style="display:none;"></div>
         </div>
-        <div class="info-grid" id="info-grid"></div>
-    </div>
 
-    <div class="manual-box">
-        <input type="text" id="manual-input" placeholder="🔍 بحث يدوي بالاسم أو الهاتف..." oninput="handleManualSearch(this.value)">
-    </div>
+        <!-- ✅ عرض المحتوى الخام فور المسح -->
+        <div class="raw-box" id="raw-box">
+            <div class="raw-label">📄 محتوى الرمز الممسوح (يظهر فور القراءة):</div>
+            <div id="raw-content">في انتظار المسح...</div>
+        </div>
 
-    <div class="history" id="history-box" style="display:none">
-        <h3>📋 آخر الفحوصات</h3>
-        <div id="history-list"></div>
+        <div class="controls">
+            <button class="btn btn-primary" id="btn-start" onclick="startScan()">📷 فتح الكاميرا</button>
+            <button class="btn btn-sec" id="btn-stop" onclick="stopScan()" style="display:none">⏹️ إيقاف</button>
+        </div>
+
+        <div class="result-box" id="result-box">
+            <div class="res-header">
+                <div class="res-icon" id="res-icon"></div>
+                <div>
+                    <div class="res-title" id="res-title"></div>
+                    <div class="res-sub" id="res-sub"></div>
+                </div>
+            </div>
+            <div class="info-grid" id="info-grid"></div>
+        </div>
+
+        <input type="text" class="manual" id="manual-input" placeholder="🔍 بحث يدوي بالاسم أو الهاتف..." oninput="manualSearch(this.value)">
+        
+        <div class="history" id="history-box" style="display:none">
+            <h3 style="font-size:0.9rem;color:#64748b;margin-bottom:8px">📋 آخر الفحوصات</h3>
+            <div id="history-list"></div>
+        </div>
     </div>
 
     <script>
         // ==========================================
-        // ⚙️ إعدادات الوضع (غيّر إلى false للربط بـ Supabase لاحقاً)
+        // 🗄️ قاعدة بيانات وهمية (تعمل أوفلاين)
         // ==========================================
-        const USE_OFFLINE_MODE = true;
-        const SUPABASE_URL = 'YOUR_URL';
-        const SUPABASE_KEY = 'YOUR_KEY';
+        const MOCK_DB = [
+            { id:'t1', patient_name:'أحمد محمد العلي', phone:'966501234567', appointment_date:'2026-04-10', appointment_time:'09:00', status:'pending' },
+            { id:'t2', patient_name:'سارة خالد', phone:'966559876543', appointment_date:'2026-04-10', appointment_time:'10:30', status:'confirmed' },
+            { id:'t3', patient_name:'عمر يوسف', phone:'966541122334', appointment_date:'2026-04-11', appointment_time:'14:00', status:'pending' }
+        ];
+        let history = JSON.parse(localStorage.getItem('scan_history') || '[]');
 
         // ==========================================
-        // 🗄️ قاعدة بيانات وهمية (أوفلاين)
+        // 📷 إعدادات الكاميرا والمسح
         // ==========================================
-        const MOCK_DB_KEY = 'mock_appointments_v1';
-        let localDB = JSON.parse(localStorage.getItem(MOCK_DB_KEY) || '[]');
-        if (localDB.length === 0) {
-            // بيانات تجريبية أولية
-            localDB = [
-                { id: 't1', patient_name: 'أحمد محمد العلي', phone: '966501234567', appointment_date: '2026-04-10', appointment_time: '09:00', status: 'pending', created_at: new Date().toISOString() },
-                { id: 't2', patient_name: 'سارة خالد', phone: '966559876543', appointment_date: '2026-04-10', appointment_time: '10:30', status: 'confirmed', created_at: new Date(Date.now()-86400000).toISOString() },
-                { id: 't3', patient_name: 'عمر يوسف', phone: '966541122334', appointment_date: '2026-04-11', appointment_time: '14:00', status: 'pending', created_at: new Date(Date.now()-172800000).toISOString() }
-            ];
-            localStorage.setItem(MOCK_DB_KEY, JSON.stringify(localDB));
-        }
+        let video, canvas, ctx, scanning = false, stream = null;
+        const rawBox = document.getElementById('raw-box');
+        const rawContent = document.getElementById('raw-content');
+        const resultBox = document.getElementById('result-box');
+        const resIcon = document.getElementById('res-icon');
+        const resTitle = document.getElementById('res-title');
+        const resSub = document.getElementById('res-sub');
+        const infoGrid = document.getElementById('info-grid');
 
-        // ==========================================
-        // 🔍 دوال البحث (تعمل أوفلاين أو أونلاين)
-        // ==========================================
-        async function searchAppointments(name, phone) {
-            if (!USE_OFFLINE_MODE) {
-                // هنا سيتم ربط Supabase لاحقاً
-                // return await supabase.from('appointments').select('*').ilike('patient_name', `%${name}%`)...
-                return [];
-            }
-            // محاكاة تأخير الشبكة
-            await new Promise(r => setTimeout(r, 300));
-            let res = localDB;
-            if (name) res = res.filter(r => r.patient_name.toLowerCase().includes(name.toLowerCase()));
-            if (phone) res = res.filter(r => r.phone.includes(phone));
-            return res.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        }
-
-        // ==========================================
-        // 📷 الكاميرا وقارئ QR الأصلي (بدون مكتبات خارجية)
-        // ==========================================
-        let videoStream = null;
-        let scanning = false;
-        let detector = null;
-        const video = document.getElementById('video-preview');
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        if ('BarcodeDetector' in window) {
-            detector = new BarcodeDetector({ formats: ['qr_code'] });
-        }
-
-        async function startCamera() {
-            if (!detector) {
-                alert('⚠️ متصفحك لا يدعم قراءة QR أصلياً. استخدم Chrome أو Edge الأحدث.\nيمكنك استخدام البحث اليدوي بدلاً من ذلك.');
+        async function startScan() {
+            if (typeof jsQR === 'undefined') {
+                alert('⚠️ لم يتم تحميل مكتبة jsQR. تأكد من اتصال الإنترنت أو حمّل الملف محلياً.');
                 return;
             }
             try {
-                videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = videoStream;
+                video = document.getElementById('video');
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d', { willReadFrequently: true });
+                
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width:{ideal:640}, height:{ideal:480} } });
+                video.srcObject = stream;
+                video.setAttribute('playsinline', true);
+                await video.play();
+                
                 video.style.display = 'block';
-                document.getElementById('scan-overlay').style.display = 'block';
+                document.getElementById('camera-placeholder').style.display = 'none';
+                document.getElementById('scan-region').style.display = 'block';
                 document.getElementById('btn-start').style.display = 'none';
-                document.getElementById('btn-stop').style.display = 'inline-flex';
-                document.getElementById('scan-status').textContent = '📡 جاري المسح...';
+                document.getElementById('btn-stop').style.display = 'flex';
+                document.getElementById('raw-content').textContent = 'جاري المسح...';
+                
                 scanning = true;
-                scanLoop();
+                requestAnimationFrame(tick);
             } catch (err) {
-                document.getElementById('scan-status').textContent = '❌ فشل فتح الكاميرا: ' + err.message;
+                alert('❌ فشل فتح الكاميرا: ' + err.message);
             }
         }
 
-        function stopCamera() {
+        function stopScan() {
             scanning = false;
-            if (videoStream) {
-                videoStream.getTracks().forEach(t => t.stop());
-                videoStream = null;
-            }
+            if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
             video.style.display = 'none';
-            document.getElementById('scan-overlay').style.display = 'none';
-            document.getElementById('btn-start').style.display = 'inline-flex';
+            document.getElementById('camera-placeholder').style.display = 'flex';
+            document.getElementById('scan-region').style.display = 'none';
+            document.getElementById('btn-start').style.display = 'flex';
             document.getElementById('btn-stop').style.display = 'none';
-            document.getElementById('scan-status').textContent = '⏳ الكاميرا متوقفة';
+            rawBox.classList.remove('active');
         }
 
-        async function scanLoop() {
-            if (!scanning || !videoStream || video.readyState !== video.HAVE_ENOUGH_DATA) {
-                if (scanning) requestAnimationFrame(scanLoop);
-                return;
-            }
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            try {
-                const barcodes = await detector.detect(canvas);
-                if (barcodes.length > 0) {
-                    const raw = barcodes[0].rawValue;
-                    scanning = false; // إيقاف المسح مؤقتاً بعد النجاح
-                    stopCamera();
-                    processQR(raw);
+        // 🔁 حلقة المسح المستمر
+        function tick() {
+            if (!scanning) return;
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                // jsQR يحاول القراءة حتى لو كان الرمز مقلوباً أو منخفض التباين
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+                
+                if (code) {
+                    handleSuccess(code.data);
+                    return; // إيقاف الحلقة مؤقتاً
                 }
-            } catch (e) { /* تجاهل أخطاء الكشف العابرة */ }
-
-            if (scanning) requestAnimationFrame(scanLoop);
-        }
-
-        // ==========================================
-        // 🔄 معالجة الرمز والبحث
-        // ==========================================
-        async function processQR(raw) {
-            const statusEl = document.getElementById('scan-status');
-            statusEl.textContent = '🔍 جاري البحث في السجلات...';
-            
-            // تحليل الصيغة: ZAYIR|الاسم|الهاتف|التاريخ
-            const parts = raw.split('|');
-            let name = '', phone = '';
-            if (parts.length >= 3) {
-                name = parts[1].trim();
-                phone = parts[2].trim().replace(/[\s\-\+]/g, '');
-            } else {
-                name = raw.trim();
             }
-
-            const results = await searchAppointments(name, phone);
-            displayResults(results, raw);
+            requestAnimationFrame(tick);
         }
 
+        // ✅ عند نجاح القراءة
+        function handleSuccess(rawData) {
+            scanning = false;
+            rawBox.classList.add('active');
+            rawContent.textContent = rawData; // عرض فوري للمحتوى الخام
+            
+            // تحليل والبحث
+            const parts = rawData.split('|');
+            let name = '', phone = '';
+            if (parts.length >= 3) { name = parts[1].trim(); phone = parts[2].trim(); }
+            else { name = rawData.trim(); }
+            
+            searchAndShow(name, phone, rawData);
+            
+            // إعادة التشغيل تلقائياً بعد 4 ثوانٍ
+            setTimeout(() => {
+                scanning = true;
+                rawBox.classList.remove('active');
+                rawContent.textContent = 'جاري المسح...';
+                resultBox.style.display = 'none';
+                requestAnimationFrame(tick);
+            }, 4000);
+        }
+
+        // 🔍 البحث في القاعدة الوهمية
+        async function searchAndShow(name, phone, raw) {
+            // محاكاة تأخير بسيط
+            await new Promise(r => setTimeout(r, 300));
+            
+            const results = MOCK_DB.filter(r => 
+                r.patient_name.toLowerCase().includes(name.toLowerCase()) || 
+                r.phone.includes(phone)
+            );
+            
+            if (results.length > 0) {
+                showFound(results[0]);
+            } else {
+                showNotFound(raw);
+            }
+        }
+
+        function showFound(data) {
+            resIcon.className = 'res-icon ok'; resIcon.textContent = '✅';
+            resTitle.textContent = 'تم العثور على الموعد';
+            resSub.textContent = 'مطابق للسجلات';
+            infoGrid.innerHTML = `
+                <div class="info full"><div class="info-label">👤 المريض</div><div class="info-val">${data.patient_name}</div></div>
+                <div class="info"><div class="info-label">📅 التاريخ</div><div class="info-val">${data.appointment_date}</div></div>
+                <div class="info"><div class="info-label">🕐 الوقت</div><div class="info-val">${data.appointment_time}</div></div>
+                <div class="info"><div class="info-label">📱 الهاتف</div><div class="info-val" dir="ltr" style="text-align:right">${data.phone}</div></div>
+                <div class="info"><div class="info-label">📋 الحالة</div><div class="info-val">${data.status==='confirmed'?'🟢 مؤكد':'🟡 قيد الانتظار'}</div></div>
+            `;
+            resultBox.style.display = 'block';
+            addToHistory(data);
+        }
+
+        function showNotFound(raw) {
+            resIcon.className = 'res-icon fail'; resIcon.textContent = '❌';
+            resTitle.textContent = 'غير موجود في السجلات';
+            resSub.textContent = 'تمت قراءة الرمز بنجاح، لكن لا يوجد سجل مطابق';
+            infoGrid.innerHTML = `
+                <div class="info full" style="background:#fef2f2;border-color:#fecaca;text-align:center">
+                    <div class="info-val" style="color:#991b1b">المحتوى المقروء: <span dir="ltr" style="font-family:monospace">${raw}</span></div>
+                    <div class="info-label">تحقق من صيغة الرمز أو أضف المريض للقاعدة</div>
+                </div>
+            `;
+            resultBox.style.display = 'block';
+        }
+
+        // 🔍 بحث يدوي
         let manualTimeout;
-        function handleManualSearch(val) {
+        function manualSearch(val) {
             clearTimeout(manualTimeout);
             if (val.trim().length < 2) return;
             manualTimeout = setTimeout(async () => {
-                document.getElementById('scan-status').textContent = '🔍 بحث يدوي...';
-                const res = await searchAppointments(val, val);
-                displayResults(res, val);
-            }, 500);
+                rawBox.classList.add('active');
+                rawContent.textContent = `بحث يدوي: ${val}`;
+                const res = MOCK_DB.filter(r => r.patient_name.toLowerCase().includes(val.toLowerCase()) || r.phone.includes(val));
+                res.length > 0 ? showFound(res[0]) : showNotFound(val);
+            }, 400);
         }
 
-        // ==========================================
-        // 📊 عرض النتائج
-        // ==========================================
-        function displayResults(data, query) {
-            const card = document.getElementById('result-card');
-            const icon = document.getElementById('res-icon');
-            const grid = document.getElementById('info-grid');
-            card.style.display = 'block';
-
-            if (!data || data.length === 0) {
-                icon.className = 'result-icon not-found'; icon.textContent = '❌';
-                document.getElementById('res-title').textContent = 'لم يتم العثور على موعد';
-                document.getElementById('res-sub').textContent = `لا يوجد سجل مطابق لـ "${query}"`;
-                grid.innerHTML = `<div class="info-item full-width" style="background:#fef2f2;border-color:#fecaca;text-align:center">
-                    <div class="info-value" style="color:#991b1b">تحقق من البيانات أو جرّب البحث اليدوي</div>
-                </div>`;
-                return;
-            }
-
-            const appt = data[0];
-            icon.className = 'result-icon found'; icon.textContent = '✅';
-            document.getElementById('res-title').textContent = 'تم العثور على الموعد';
-            document.getElementById('res-sub').textContent = data.length > 1 ? `${data.length} نتائج (الأحدث)` : 'نتيجة واحدة';
-
-            const stClass = appt.status === 'confirmed' ? 'st-confirmed' : appt.status === 'completed' ? 'st-completed' : 'st-pending';
-            const stText = appt.status === 'confirmed' ? '🟢 مؤكد' : appt.status === 'completed' ? '🔵 مكتمل' : '🟡 قيد الانتظار';
-
-            grid.innerHTML = `
-                <div class="info-item full-width"><div class="info-label">👤 المريض</div><div class="info-value" style="font-size:1.1rem">${appt.patient_name}</div></div>
-                <div class="info-item"><div class="info-label">📅 التاريخ</div><div class="info-value">${appt.appointment_date}</div></div>
-                <div class="info-item"><div class="info-label">🕐 الوقت</div><div class="info-value">${appt.appointment_time}</div></div>
-                <div class="info-item"><div class="info-label">📱 الهاتف</div><div class="info-value" dir="ltr" style="text-align:right">${appt.phone}</div></div>
-                <div class="info-item"><div class="info-label">📋 الحالة</div><div class="info-value"><span class="status-badge ${stClass}">${stText}</span></div></div>
-                <div class="info-item"><div class="info-label">🆔 رقم الحجز</div><div class="info-value" style="font-family:monospace;font-size:0.8rem">${appt.id.substring(0,8)}...</div></div>
-            `;
-            addToHistory(appt);
-        }
-
-        // ==========================================
-        // 📝 سجل الفحص
-        // ==========================================
-        let history = JSON.parse(localStorage.getItem('scan_history') || '[]');
-        function addToHistory(appt) {
-            history = history.filter(h => h.id !== appt.id);
-            history.unshift({ id: appt.id, name: appt.patient_name, time: new Date().toLocaleTimeString('ar'), date: appt.appointment_date });
-            if (history.length > 5) history.pop();
+        // 📝 سجل
+        function addToHistory(data) {
+            history = history.filter(h => h.id !== data.id);
+            history.unshift({ id:data.id, name:data.patient_name, time:new Date().toLocaleTimeString('ar') });
+            if(history.length>5) history.pop();
             localStorage.setItem('scan_history', JSON.stringify(history));
             renderHistory();
         }
         function renderHistory() {
             const box = document.getElementById('history-box');
             const list = document.getElementById('history-list');
-            if (history.length === 0) { box.style.display = 'none'; return; }
-            box.style.display = 'block';
-            list.innerHTML = history.map(h => `<div class="h-item"><div><b>${h.name}</b><br><small>${h.date}</small></div><small>${h.time}</small></div>`).join('');
+            if(history.length===0){box.style.display='none';return;}
+            box.style.display='block';
+            list.innerHTML = history.map(h=>`<div class="h-item"><span>${h.name}</span><small>${h.time}</small></div>`).join('');
         }
 
-        // تهيئة
-        window.addEventListener('DOMContentLoaded', () => {
-            renderHistory();
-            document.getElementById('mode-badge').textContent = USE_OFFLINE_MODE ? '🧪 وضع تجريبي (أوفلاين)' : '☁️ متصل بقاعدة البيانات';
-        });
+        window.addEventListener('DOMContentLoaded', () => { renderHistory(); });
     </script>
 </body>
 </html>
