@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>فاحص QR التجريبي | عيادة MIS</title>
-    <!-- مكتبة jsQR لقراءة الرموز حتى لو كانت غير واضحة -->
+    <title>فاحص QR | تطابق تام مع السجلات</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         :root { --p:#2563eb; --s:#10b981; --bg:#f8fafc; --card:#fff; --txt:#0f172a; --brd:#e2e8f0; --err:#ef4444; }
@@ -33,7 +32,6 @@
         }
         @keyframes pulse { 0%,100%{border-color:rgba(255,255,255,0.6)} 50%{border-color:#fff} }
         
-        /* ✅ منطقة عرض المحتوى الخام */
         .raw-box {
             background:#fff; border:1.5px dashed #cbd5e1; border-radius:12px; padding:14px;
             margin-bottom:16px; text-align:center; transition:all 0.3s;
@@ -77,15 +75,14 @@
         .h-item { background:#fff; padding:10px; border-radius:8px; margin-bottom:8px; border:1px solid var(--brd); font-size:0.85rem; display:flex; justify-content:space-between; }
         
         .note { font-size:0.75rem; color:#64748b; text-align:center; margin-top:20px; line-height:1.5; }
-        
         @media(max-width:400px) { .info-grid{grid-template-columns:1fr} }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>📷 فاحص QR التجريبي</h1>
-            <p>يقرأ حتى الرموز غير الواضحة ويعرض المحتوى فوراً</p>
+            <h1>📷 فاحص QR | تطابق تام</h1>
+            <p>يقرأ الرمز ويقارنه بدقة مع سجلات المواعيد</p>
         </div>
 
         <div class="camera-box">
@@ -100,7 +97,6 @@
             <div class="scan-region" id="scan-region"></div>
         </div>
 
-        <!-- ✅ عرض المحتوى الخام فور المسح -->
         <div class="raw-box" id="raw-box">
             <div class="raw-label">📄 محتوى الرمز الممسوح (يظهر فور القراءة):</div>
             <div id="raw-content">في انتظار المسح...</div>
@@ -130,8 +126,8 @@
         </div>
 
         <div class="note">
-            💡 ملاحظة: يعمل هذا الملف محلياً مع بيانات تجريبية.<br>
-            عند الربط بـ Supabase، غيّر `USE_MOCK_DB = false` وأضف مفاتيحك.
+            💡 لضمان التطابق: يجب أن يحتوي الـ QR على الصيغة:<br>
+            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;direction:ltr;display:inline-block;margin-top:4px">ZAYIR|الاسم الكامل|رقم الهاتف|التاريخ الوقت</code>
         </div>
     </div>
 
@@ -143,9 +139,7 @@
         const SUPABASE_URL = 'YOUR_URL';
         const SUPABASE_KEY = 'YOUR_KEY';
 
-        // ==========================================
-        // 🗄️ قاعدة بيانات تجريبية (محلية)
-        // ==========================================
+        // 🗄️ قاعدة بيانات تجريبية (مطابقة للصيغة المتوقعة)
         const MOCK_DB = [
             { id:'t1', patient_name:'أحمد محمد العلي', phone:'966501234567', appointment_date:'2026-04-10', appointment_time:'09:00', status:'pending' },
             { id:'t2', patient_name:'سارة خالد', phone:'966559876543', appointment_date:'2026-04-10', appointment_time:'10:30', status:'confirmed' },
@@ -168,7 +162,7 @@
         // ✅ بدء الكاميرا والمسح
         async function startScan() {
             if (typeof jsQR === 'undefined') {
-                alert('⚠️ لم يتم تحميل مكتبة jsQR. تأكد من اتصال الإنترنت أو حمّل المكتبة محلياً.');
+                alert('⚠️ لم يتم تحميل مكتبة jsQR. تأكد من اتصال الإنترنت.');
                 return;
             }
             try {
@@ -195,7 +189,7 @@
                 scanCooldown = false;
                 requestAnimationFrame(tick);
             } catch (err) {
-                alert('❌ فشل فتح الكاميرا: ' + err.message + '\nتأكد من السماح بالصلاحيات واستخدام HTTPS أو localhost.');
+                alert('❌ فشل فتح الكاميرا: ' + err.message + '\nتأكد من السماح بالصلاحيات واستخدام HTTPS.');
             }
         }
 
@@ -240,13 +234,19 @@
             rawBox.classList.add('active');
             rawContent.textContent = rawData; // ✅ عرض فوري للمحتوى الخام
             
-            // تحليل والبحث
+            // 📦 تحليل الصيغة المتوقعة: ZAYIR|الاسم|الهاتف|التاريخ الوقت
             const parts = rawData.split('|');
-            let name = '', phone = '';
-            if (parts.length >= 3) { name = parts[1].trim(); phone = parts[2].trim(); }
-            else { name = rawData.trim(); }
+            let qrName = '', qrPhone = '';
             
-            searchAndShow(name, phone, rawData);
+            if (parts.length >= 3) {
+                qrName = parts[1].trim();
+                // توحيد رقم الهاتف: إزالة أي رموز غير رقمية
+                qrPhone = parts[2].trim().replace(/\D/g, ''); 
+            } else {
+                qrName = rawData.trim();
+            }
+            
+            searchAndShow(qrName, qrPhone, rawData);
             
             // إعادة التشغيل تلقائياً بعد 4 ثوانٍ
             setTimeout(() => {
@@ -259,16 +259,17 @@
             }, 4000);
         }
 
-        // 🔍 البحث في القاعدة
+        // 🔍 البحث بدقة (تطابق تام)
         async function searchAndShow(name, phone, raw) {
-            await new Promise(r => setTimeout(r, 250)); // محاكاة تأخير بسيط
+            await new Promise(r => setTimeout(r, 200));
             
             let results = [];
             if (USE_MOCK_DB) {
-                results = MOCK_DB.filter(r => 
-                    r.patient_name.toLowerCase().includes(name.toLowerCase()) || 
-                    r.phone.includes(phone)
-                );
+                results = MOCK_DB.filter(r => {
+                    const dbPhone = r.phone.replace(/\D/g, ''); // توحيد قاعدة البيانات للمقارنة
+                    // تطابق تام على الهاتف OR تطابق تام على الاسم
+                    return dbPhone === phone || r.patient_name === name;
+                });
             } else {
                 // هنا يُوضع كود Supabase لاحقاً
                 results = [];
@@ -277,41 +278,43 @@
             if (results.length > 0) {
                 showFound(results[0]);
             } else {
-                showNotFound(raw);
+                showNotFound(raw, name, phone);
             }
         }
 
         function showFound(data) {
             resIcon.className = 'res-icon ok'; resIcon.textContent = '✅';
-            resTitle.textContent = 'تم العثور على الموعد';
-            resSub.textContent = 'مطابق للسجلات';
+            resTitle.textContent = 'تم التطابق مع السجل';
+            resSub.textContent = '✅ بيانات الموعد مؤكدة';
             infoGrid.innerHTML = `
                 <div class="info full"><div class="info-label">👤 المريض</div><div class="info-val">${data.patient_name}</div></div>
                 <div class="info"><div class="info-label">📅 التاريخ</div><div class="info-val">${data.appointment_date}</div></div>
                 <div class="info"><div class="info-label">🕐 الوقت</div><div class="info-val">${data.appointment_time}</div></div>
                 <div class="info"><div class="info-label">📱 الهاتف</div><div class="info-val" dir="ltr" style="text-align:right">${data.phone}</div></div>
-                <div class="info"><div class="info-label">📋 الحالة</div><div class="info-val">${data.status==='confirmed'?'🟢 مؤكد':'🟡 قيد الانتظار'}</div></div>
+                <div class="info"><div class="info-label">📋 الحالة</div><div class="info-val">${data.status==='confirmed'?'🟢 مؤكد':' قيد الانتظار'}</div></div>
             `;
             resultBox.style.display = 'block';
             addToHistory(data);
         }
 
-        function showNotFound(raw) {
+        function showNotFound(raw, name, phone) {
             resIcon.className = 'res-icon fail'; resIcon.textContent = '❌';
-            resTitle.textContent = 'غير موجود في السجلات';
-            resSub.textContent = 'تمت قراءة الرمز بنجاح، لكن لا يوجد سجل مطابق';
+            resTitle.textContent = 'لا يوجد تطابق تام';
+            resSub.textContent = 'تمت القراءة بنجاح، لكن البيانات لا تطابق أي سجل';
             infoGrid.innerHTML = `
                 <div class="info full" style="background:#fef2f2;border-color:#fecaca;text-align:center">
-                    <div class="info-val" style="color:#991b1b; font-size:0.85rem; word-break:break-all;">
-                        المحتوى المقروء: <span dir="ltr" style="font-family:monospace">${raw}</span>
+                    <div class="info-label">🔍 ما تم استخراجه من الرمز:</div>
+                    <div style="direction:ltr; font-family:monospace; font-size:0.85rem; background:#fff; padding:8px; border-radius:6px; margin:6px 0; border:1px solid #fecaca;">
+                        الاسم: <b>${name || 'غير محدد'}</b><br>
+                        الهاتف: <b>${phone || 'غير محدد'}</b>
                     </div>
-                    <div class="info-label" style="margin-top:6px">تحقق من صيغة الرمز أو أضف المريض للقاعدة</div>
+                    <div class="info-label" style="margin-top:6px">💡 تأكد أن الرمز يحتوي على اسم أو هاتف مطابق تماماً لأحد السجلات في القاعدة</div>
                 </div>
             `;
             resultBox.style.display = 'block';
         }
 
-        // 🔍 بحث يدوي
+        // 🔍 بحث يدوي (نفس منطق التطابق التام)
         let manualTimeout;
         function manualSearch(val) {
             clearTimeout(manualTimeout);
@@ -319,11 +322,16 @@
             manualTimeout = setTimeout(async () => {
                 rawBox.classList.add('active');
                 rawContent.textContent = `بحث يدوي: ${val}`;
+                
+                const cleanVal = val.trim().replace(/\D/g, ''); // إذا كان رقماً
                 let res = [];
                 if (USE_MOCK_DB) {
-                    res = MOCK_DB.filter(r => r.patient_name.toLowerCase().includes(val.toLowerCase()) || r.phone.includes(val));
+                    res = MOCK_DB.filter(r => {
+                        const dbPhone = r.phone.replace(/\D/g, '');
+                        return dbPhone === cleanVal || r.patient_name === val.trim();
+                    });
                 }
-                res.length > 0 ? showFound(res[0]) : showNotFound(val);
+                res.length > 0 ? showFound(res[0]) : showNotFound(val, val, cleanVal);
             }, 400);
         }
 
