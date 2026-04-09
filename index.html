@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>فاحص QR التجريبي (قوي + أوفلاين)</title>
-    <!-- مكتبة jsQR المتخصصة في قراءة الرموز غير الواضحة -->
+    <title>فاحص QR التجريبي | عيادة MIS</title>
+    <!-- مكتبة jsQR لقراءة الرموز حتى لو كانت غير واضحة -->
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         :root { --p:#2563eb; --s:#10b981; --bg:#f8fafc; --card:#fff; --txt:#0f172a; --brd:#e2e8f0; --err:#ef4444; }
@@ -29,7 +29,7 @@
         .scan-region {
             position:absolute; width:60%; height:60%; border:2px solid rgba(255,255,255,0.6);
             border-radius:12px; box-shadow:0 0 0 100vmax rgba(0,0,0,0.5); pointer-events:none;
-            animation: pulse 2s infinite;
+            animation: pulse 2s infinite; display:none;
         }
         @keyframes pulse { 0%,100%{border-color:rgba(255,255,255,0.6)} 50%{border-color:#fff} }
         
@@ -76,6 +76,8 @@
         .history { margin-top:16px; }
         .h-item { background:#fff; padding:10px; border-radius:8px; margin-bottom:8px; border:1px solid var(--brd); font-size:0.85rem; display:flex; justify-content:space-between; }
         
+        .note { font-size:0.75rem; color:#64748b; text-align:center; margin-top:20px; line-height:1.5; }
+        
         @media(max-width:400px) { .info-grid{grid-template-columns:1fr} }
     </style>
 </head>
@@ -95,7 +97,7 @@
                     <div>اضغط "فتح الكاميرا" لبدء المسح</div>
                 </div>
             </div>
-            <div class="scan-region" id="scan-region" style="display:none;"></div>
+            <div class="scan-region" id="scan-region"></div>
         </div>
 
         <!-- ✅ عرض المحتوى الخام فور المسح -->
@@ -126,23 +128,35 @@
             <h3 style="font-size:0.9rem;color:#64748b;margin-bottom:8px">📋 آخر الفحوصات</h3>
             <div id="history-list"></div>
         </div>
+
+        <div class="note">
+            💡 ملاحظة: يعمل هذا الملف محلياً مع بيانات تجريبية.<br>
+            عند الربط بـ Supabase، غيّر `USE_MOCK_DB = false` وأضف مفاتيحك.
+        </div>
     </div>
 
     <script>
         // ==========================================
-        // 🗄️ قاعدة بيانات وهمية (تعمل أوفلاين)
+        // ⚙️ إعدادات التشغيل
+        // ==========================================
+        const USE_MOCK_DB = true; // غيّر إلى false عند الربط بـ Supabase
+        const SUPABASE_URL = 'YOUR_URL';
+        const SUPABASE_KEY = 'YOUR_KEY';
+
+        // ==========================================
+        // 🗄️ قاعدة بيانات تجريبية (محلية)
         // ==========================================
         const MOCK_DB = [
             { id:'t1', patient_name:'أحمد محمد العلي', phone:'966501234567', appointment_date:'2026-04-10', appointment_time:'09:00', status:'pending' },
             { id:'t2', patient_name:'سارة خالد', phone:'966559876543', appointment_date:'2026-04-10', appointment_time:'10:30', status:'confirmed' },
             { id:'t3', patient_name:'عمر يوسف', phone:'966541122334', appointment_date:'2026-04-11', appointment_time:'14:00', status:'pending' }
         ];
-        let history = JSON.parse(localStorage.getItem('scan_history') || '[]');
 
-        // ==========================================
-        // 📷 إعدادات الكاميرا والمسح
-        // ==========================================
+        let history = JSON.parse(localStorage.getItem('scan_history') || '[]');
         let video, canvas, ctx, scanning = false, stream = null;
+        let lastScannedCode = '';
+        let scanCooldown = false;
+
         const rawBox = document.getElementById('raw-box');
         const rawContent = document.getElementById('raw-content');
         const resultBox = document.getElementById('result-box');
@@ -151,9 +165,10 @@
         const resSub = document.getElementById('res-sub');
         const infoGrid = document.getElementById('info-grid');
 
+        // ✅ بدء الكاميرا والمسح
         async function startScan() {
             if (typeof jsQR === 'undefined') {
-                alert('⚠️ لم يتم تحميل مكتبة jsQR. تأكد من اتصال الإنترنت أو حمّل الملف محلياً.');
+                alert('⚠️ لم يتم تحميل مكتبة jsQR. تأكد من اتصال الإنترنت أو حمّل المكتبة محلياً.');
                 return;
             }
             try {
@@ -161,7 +176,9 @@
                 canvas = document.getElementById('canvas');
                 ctx = canvas.getContext('2d', { willReadFrequently: true });
                 
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width:{ideal:640}, height:{ideal:480} } });
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment', width:{ideal:640}, height:{ideal:480} } 
+                });
                 video.srcObject = stream;
                 video.setAttribute('playsinline', true);
                 await video.play();
@@ -171,12 +188,14 @@
                 document.getElementById('scan-region').style.display = 'block';
                 document.getElementById('btn-start').style.display = 'none';
                 document.getElementById('btn-stop').style.display = 'flex';
-                document.getElementById('raw-content').textContent = 'جاري المسح...';
+                rawContent.textContent = 'جاري المسح...';
                 
                 scanning = true;
+                lastScannedCode = '';
+                scanCooldown = false;
                 requestAnimationFrame(tick);
             } catch (err) {
-                alert('❌ فشل فتح الكاميرا: ' + err.message);
+                alert('❌ فشل فتح الكاميرا: ' + err.message + '\nتأكد من السماح بالصلاحيات واستخدام HTTPS أو localhost.');
             }
         }
 
@@ -200,12 +219,13 @@
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                // jsQR يحاول القراءة حتى لو كان الرمز مقلوباً أو منخفض التباين
-                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { 
+                    inversionAttempts: "attemptBoth" 
+                });
                 
-                if (code) {
+                if (code && code.data !== lastScannedCode && !scanCooldown) {
                     handleSuccess(code.data);
-                    return; // إيقاف الحلقة مؤقتاً
+                    return;
                 }
             }
             requestAnimationFrame(tick);
@@ -214,8 +234,11 @@
         // ✅ عند نجاح القراءة
         function handleSuccess(rawData) {
             scanning = false;
+            lastScannedCode = rawData;
+            scanCooldown = true;
+            
             rawBox.classList.add('active');
-            rawContent.textContent = rawData; // عرض فوري للمحتوى الخام
+            rawContent.textContent = rawData; // ✅ عرض فوري للمحتوى الخام
             
             // تحليل والبحث
             const parts = rawData.split('|');
@@ -231,19 +254,25 @@
                 rawBox.classList.remove('active');
                 rawContent.textContent = 'جاري المسح...';
                 resultBox.style.display = 'none';
+                scanCooldown = false;
                 requestAnimationFrame(tick);
             }, 4000);
         }
 
-        // 🔍 البحث في القاعدة الوهمية
+        // 🔍 البحث في القاعدة
         async function searchAndShow(name, phone, raw) {
-            // محاكاة تأخير بسيط
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 250)); // محاكاة تأخير بسيط
             
-            const results = MOCK_DB.filter(r => 
-                r.patient_name.toLowerCase().includes(name.toLowerCase()) || 
-                r.phone.includes(phone)
-            );
+            let results = [];
+            if (USE_MOCK_DB) {
+                results = MOCK_DB.filter(r => 
+                    r.patient_name.toLowerCase().includes(name.toLowerCase()) || 
+                    r.phone.includes(phone)
+                );
+            } else {
+                // هنا يُوضع كود Supabase لاحقاً
+                results = [];
+            }
             
             if (results.length > 0) {
                 showFound(results[0]);
@@ -273,8 +302,10 @@
             resSub.textContent = 'تمت قراءة الرمز بنجاح، لكن لا يوجد سجل مطابق';
             infoGrid.innerHTML = `
                 <div class="info full" style="background:#fef2f2;border-color:#fecaca;text-align:center">
-                    <div class="info-val" style="color:#991b1b">المحتوى المقروء: <span dir="ltr" style="font-family:monospace">${raw}</span></div>
-                    <div class="info-label">تحقق من صيغة الرمز أو أضف المريض للقاعدة</div>
+                    <div class="info-val" style="color:#991b1b; font-size:0.85rem; word-break:break-all;">
+                        المحتوى المقروء: <span dir="ltr" style="font-family:monospace">${raw}</span>
+                    </div>
+                    <div class="info-label" style="margin-top:6px">تحقق من صيغة الرمز أو أضف المريض للقاعدة</div>
                 </div>
             `;
             resultBox.style.display = 'block';
@@ -288,25 +319,28 @@
             manualTimeout = setTimeout(async () => {
                 rawBox.classList.add('active');
                 rawContent.textContent = `بحث يدوي: ${val}`;
-                const res = MOCK_DB.filter(r => r.patient_name.toLowerCase().includes(val.toLowerCase()) || r.phone.includes(val));
+                let res = [];
+                if (USE_MOCK_DB) {
+                    res = MOCK_DB.filter(r => r.patient_name.toLowerCase().includes(val.toLowerCase()) || r.phone.includes(val));
+                }
                 res.length > 0 ? showFound(res[0]) : showNotFound(val);
             }, 400);
         }
 
-        // 📝 سجل
+        // 📝 سجل الفحص
         function addToHistory(data) {
             history = history.filter(h => h.id !== data.id);
             history.unshift({ id:data.id, name:data.patient_name, time:new Date().toLocaleTimeString('ar') });
-            if(history.length>5) history.pop();
+            if(history.length > 5) history.pop();
             localStorage.setItem('scan_history', JSON.stringify(history));
             renderHistory();
         }
         function renderHistory() {
             const box = document.getElementById('history-box');
             const list = document.getElementById('history-list');
-            if(history.length===0){box.style.display='none';return;}
-            box.style.display='block';
-            list.innerHTML = history.map(h=>`<div class="h-item"><span>${h.name}</span><small>${h.time}</small></div>`).join('');
+            if(history.length === 0){ box.style.display = 'none'; return; }
+            box.style.display = 'block';
+            list.innerHTML = history.map(h => `<div class="h-item"><span>${h.name}</span><small>${h.time}</small></div>`).join('');
         }
 
         window.addEventListener('DOMContentLoaded', () => { renderHistory(); });
