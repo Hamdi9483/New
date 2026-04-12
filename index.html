@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title data-i18n="title">فاحص QR | تطابق تام مع السجلات</title>
+    <title data-i18n="title">فاحص QR</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -65,6 +65,7 @@
         .res-icon { width:50px; height:50px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:1.4rem; flex-shrink:0; }
         .res-icon.ok { background:rgba(34,197,94,0.15); color:var(--success); }
         .res-icon.fail { background:rgba(239,68,68,0.15); color:var(--error); }
+        .res-icon.warn { background:rgba(245,158,11,0.15); color:var(--warning); }
         .res-title { font-weight:700; font-size:1.1rem; }
         .res-sub { font-size:0.85rem; color:var(--text-muted); }
         .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -104,6 +105,7 @@
         .toast.show { transform:translateX(-50%) translateY(0); }
         .toast.success { border-left:4px solid var(--success); }
         .toast.error { border-left:4px solid var(--error); }
+        .toast.warn { border-left:4px solid var(--warning); }
         
         @media(max-width:420px) { .info-grid{grid-template-columns:1fr} .header{flex-direction:column;gap:12px;text-align:center} .settings{width:100%;justify-content:center} }
     </style>
@@ -166,11 +168,6 @@
             <div id="history-list"></div>
         </div>
 
-        <div class="note">
-            <i class="fas fa-lightbulb" style="color:var(--accent)"></i> 
-            <span data-i18n="formatHint">QR should contain format:</span><br>
-            <code>ZAYIR|FullName|Phone|DateTime</code>
-        </div>
     </div>
 
     <div class="toast" id="toast">
@@ -182,48 +179,87 @@
         // 🌐 Translations
         const translations = {
             ar: {
-                appTitle: "📷 فاحص QR", appSubtitle: "امسح وتحقق من المواعيد فوراً",
-                cameraHint: "اضغط \"فتح الكاميرا\" لبدء المسح", rawLabel: "📄 محتوى الرمز الممسوح:",
+                appTitle: " فاحص QR", appSubtitle: "امسح وتحقق من المواعيد فوراً",
+                cameraHint: "اضغط \"فتح الكاميرا\" لبدء المسح", rawLabel: " محتوى الرمز الممسوح:",
                 waiting: "في انتظار المسح...", scanning: "جاري المسح...",
-                startCamera: "📷 فتح الكاميرا", stop: "⏹️ إيقاف",
+                startCamera: " فتح الكاميرا", stop: " إيقاف",
                 matchFound: "✅ تم التطابق مع السجل", appointmentConfirmed: "بيانات الموعد مؤكدة",
                 noMatch: "❌ لا يوجد تطابق تام", noMatchSub: "تمت القراءة بنجاح، لكن البيانات لا تطابق أي سجل",
-                extracted: "🔍 ما تم استخراجه من الرمز:", name: "الاسم", phone: "الهاتف", unspecified: "غير محدد",
+                alreadyScanned: "⚠️ هذا الاسم مُمسوح سابقاً", alreadyScannedSub: "تم تأكيد حضور هذا المريض مسبقاً",
+                extracted: " ما تم استخراجه من الرمز:", name: "الاسم", phone: "الهاتف", unspecified: "غير محدد",
                 formatHint: "💡 لضمان التطابق: يجب أن يحتوي الـ QR على الصيغة:",
-                recentScans: "📋 آخر الفحوصات", searchPlaceholder: "🔍 بحث يدوي بالاسم أو الهاتف...",
+                recentScans: " آخر الفحوصات", searchPlaceholder: " بحث يدوي بالاسم أو الهاتف...",
                 patient: "👤 المريض", date: "📅 التاريخ", time: "🕐 الوقت", status: "📋 الحالة",
                 confirmed: "🟢 مؤكد", pending: "🟡 قيد الانتظار",
                 toastCameraError: "❌ فشل فتح الكاميرا", toastLibraryError: "⚠️ لم يتم تحميل مكتبة jsQR",
-                toastCopied: "📋 تم نسخ المحتوى", toastResume: "🔄 استئناف المسح...",
+                toastCopied: " تم نسخ المحتوى", toastResume: "🔄 استئناف المسح...",
+                toastConfirmed: "✅ تم تحديث الحالة إلى: مؤكد",
                 language: "العربية", theme: "الوضع الليلي"
             },
             en: {
-                appTitle: "📷 QR Scanner", appSubtitle: "Scan & verify appointments instantly",
-                cameraHint: "Tap \"Start Camera\" to begin scanning", rawLabel: "📄 Scanned Content:",
+                appTitle: " QR Scanner", appSubtitle: "Scan & verify appointments instantly",
+                cameraHint: "Tap \"Start Camera\" to begin scanning", rawLabel: " Scanned Content:",
                 waiting: "Waiting for scan...", scanning: "Scanning...",
-                startCamera: "📷 Start Camera", stop: "⏹️ Stop",
+                startCamera: " Start Camera", stop: "⏹ Stop",
                 matchFound: "✅ Match Found", appointmentConfirmed: "Appointment data verified",
                 noMatch: "❌ No Exact Match", noMatchSub: "Scan successful, but data doesn't match any record",
-                extracted: "🔍 Extracted from QR:", name: "Name", phone: "Phone", unspecified: "Unspecified",
+                alreadyScanned: "⚠️ Already Scanned", alreadyScannedSub: "This patient was already confirmed",
+                extracted: " Extracted from QR:", name: "Name", phone: "Phone", unspecified: "Unspecified",
                 formatHint: "💡 For matching: QR should contain format:",
-                recentScans: "📋 Recent Scans", searchPlaceholder: "🔍 Search by name or phone...",
+                recentScans: " Recent Scans", searchPlaceholder: " Search by name or phone...",
                 patient: "👤 Patient", date: "📅 Date", time: "🕐 Time", status: "📋 Status",
                 confirmed: "🟢 Confirmed", pending: "🟡 Pending",
                 toastCameraError: "❌ Failed to open camera", toastLibraryError: "⚠️ jsQR library not loaded",
-                toastCopied: "📋 Content copied", toastResume: "🔄 Resuming scan...",
+                toastCopied: " Content copied", toastResume: "🔄 Resuming scan...",
+                toastConfirmed: "✅ Status updated to: Confirmed",
                 language: "English", theme: "Dark Mode"
             }
         };
 
         // ⚙️ Config
         const USE_MOCK_DB = true;
-        const MOCK_DB = [
+        const STORAGE_KEY = 'qr_appointments_db'; // مفتاح تخزين الحالة
+        
+        // قاعدة البيانات الأولية
+        const INITIAL_DB = [
             {id:'t1',patient_name:'أحمد محمد العلي',phone:'966501234567',appointment_date:'2026-04-10',appointment_time:'09:00',status:'pending'},
-            {id:'t2',patient_name:'سارة خالد',phone:'966559876543',appointment_date:'2026-04-10',appointment_time:'10:30',status:'confirmed'},
+            {id:'t2',patient_name:'سارة خالد',phone:'966559876543',appointment_date:'2026-04-10',appointment_time:'10:30',status:'pending'},
             {id:'t3',patient_name:'عمر يوسف',phone:'966541122334',appointment_date:'2026-04-11',appointment_time:'14:00',status:'pending'},
             {id:'t4',patient_name:'Ahmed Al-Ali',phone:'966501234567',appointment_date:'2026-04-10',appointment_time:'09:00',status:'pending'},
-            {id:'t5',patient_name:'Sarah Khaled',phone:'966559876543',appointment_date:'2026-04-10',appointment_time:'10:30',status:'confirmed'}
+            {id:'t5',patient_name:'Sarah Khaled',phone:'966559876543',appointment_date:'2026-04-10',appointment_time:'10:30',status:'pending'}
         ];
+
+        // 🗄️ إدارة قاعدة البيانات مع الحفظ المحلي
+        function getDatabase() {
+            if (!USE_MOCK_DB) return INITIAL_DB;
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // دمج مع البيانات الأولية في حال إضافة سجلات جديدة
+                return INITIAL_DB.map(init => {
+                    const existing = parsed.find(p => p.id === init.id);
+                    return existing ? {...init, status: existing.status} : init;
+                });
+            }
+            return JSON.parse(JSON.stringify(INITIAL_DB)); // نسخة عميقة
+        }
+
+        function saveDatabase(db) {
+            if (!USE_MOCK_DB) return;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+        }
+
+        function updateStatusInDB(id, newStatus) {
+            if (!USE_MOCK_DB) return true;
+            const db = getDatabase();
+            const record = db.find(r => r.id === id);
+            if (record) {
+                record.status = newStatus;
+                saveDatabase(db);
+                return true;
+            }
+            return false;
+        }
 
         // State
         let currentLang = localStorage.getItem('qr_lang') || 'ar';
@@ -345,22 +381,76 @@
         // 🔍 Search
         async function searchAndShow(name, phone, raw) {
             await new Promise(r => setTimeout(r, 200));
-            let results = [];
-            if (USE_MOCK_DB) {
-                results = MOCK_DB.filter(r => {
-                    const dbPhone = r.phone.replace(/\D/g, '');
-                    return dbPhone === phone || r.patient_name === name;
-                });
+            const db = getDatabase();
+            let results = db.filter(r => {
+                const dbPhone = r.phone.replace(/\D/g, '');
+                return dbPhone === phone || r.patient_name === name;
+            });
+            
+            if (results.length > 0) {
+                const record = results[0];
+                // 🚫 التحقق مما إذا كان ممسوحاً مسبقاً
+                if (record.status === 'confirmed') {
+                    showAlreadyScanned(record, raw);
+                } else {
+                    // ✅ تحديث الحالة إلى confirmed وحفظها
+                    updateStatusInDB(record.id, 'confirmed');
+                    showToast(translations[currentLang].toastConfirmed, 'success');
+                    showFound(record, raw);
+                }
+            } else {
+                showNotFound(raw, name, phone);
             }
-            results.length > 0 ? showFound(results[0], raw) : showNotFound(raw, name, phone);
+        }
+
+        // ⚠️ عرض رسالة "ممسوح سابقاً"
+        function showAlreadyScanned(data, raw) {
+            const t = translations[currentLang];
+            resIcon.className = 'res-icon warn'; 
+            resIcon.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            resTitle.textContent = t.alreadyScanned; 
+            resSub.textContent = t.alreadyScannedSub;
+            
+            infoGrid.innerHTML = `
+                <div class="info full">
+                    <div class="info-label">${t.patient}</div>
+                    <div class="info-val">${escapeHtml(data.patient_name)}</div>
+                </div>
+                <div class="info">
+                    <div class="info-label">${t.date}</div>
+                    <div class="info-val">${data.appointment_date}</div>
+                </div>
+                <div class="info">
+                    <div class="info-label">${t.time}</div>
+                    <div class="info-val">${data.appointment_time}</div>
+                </div>
+                <div class="info">
+                    <div class="info-label">${t.phone}</div>
+                    <div class="info-val" dir="ltr" style="text-align:${currentLang==='ar'?'right':'left'}">${data.phone}</div>
+                </div>
+                <div class="info">
+                    <div class="info-label">${t.status}</div>
+                    <div class="info-val" style="color:var(--success)">🟢 ${t.confirmed}</div>
+                </div>
+                <div class="info full" style="text-align:center;margin-top:8px;background:rgba(245,158,11,0.1);border-color:rgba(245,158,11,0.3)">
+                    <small style="color:var(--warning)">
+                        <i class="fas fa-info-circle"></i> 
+                        ${currentLang==='ar'?'تم تأكيد حضور هذا المريض مسبقاً - لا حاجة للمسح مرة أخرى':'Patient already confirmed - no need to scan again'}
+                    </small>
+                </div>`;
+            resultBox.style.display = 'block';
+            // لا نضيف للسجل عند المسح المكرر
         }
 
         function showFound(data, raw) {
             const t = translations[currentLang];
-            resIcon.className = 'res-icon ok'; resIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
-            resTitle.textContent = t.matchFound; resSub.textContent = t.appointmentConfirmed;
+            resIcon.className = 'res-icon ok'; 
+            resIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
+            resTitle.textContent = t.matchFound; 
+            resSub.textContent = t.appointmentConfirmed;
             const statusText = data.status === 'confirmed' ? t.confirmed : t.pending;
             const statusColor = data.status === 'confirmed' ? 'var(--success)' : 'var(--warning)';
+            
             infoGrid.innerHTML = `
                 <div class="info full"><div class="info-label">${t.patient}</div><div class="info-val">${escapeHtml(data.patient_name)}</div></div>
                 <div class="info"><div class="info-label">${t.date}</div><div class="info-val">${data.appointment_date}</div></div>
@@ -373,16 +463,18 @@
                     </button>
                 </div>`;
             resultBox.style.display = 'block';
-            // Add copy event
             resultBox.querySelector('.btn-copy').onclick = (e) => { e.stopPropagation(); copyToClipboard(raw); };
             addToHistory(data);
         }
 
         function showNotFound(raw, name, phone) {
             const t = translations[currentLang];
-            resIcon.className = 'res-icon fail'; resIcon.innerHTML = '<i class="fas fa-times-circle"></i>';
-            resTitle.textContent = t.noMatch; resSub.textContent = t.noMatchSub;
+            resIcon.className = 'res-icon fail'; 
+            resIcon.innerHTML = '<i class="fas fa-times-circle"></i>';
+            resTitle.textContent = t.noMatch; 
+            resSub.textContent = t.noMatchSub;
             const nameVal = name || t.unspecified, phoneVal = phone || t.unspecified;
+            
             infoGrid.innerHTML = `
                 <div class="info full" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);text-align:center">
                     <div class="info-label">${t.extracted}</div>
@@ -396,24 +488,45 @@
             resultBox.style.display = 'block';
         }
 
-        // 🔍 Manual Search
+        // 🔍 Manual Search - مع مسح السجل عند بحث جديد
         let manualTimeout;
         function manualSearch(val) {
             clearTimeout(manualTimeout);
             if (val.trim().length < 2) return;
+            
+            // 🗑️ مسح سجل البحث عند بدء بحث جديد
+            clearHistory();
+            
             manualTimeout = setTimeout(async () => {
                 rawBox.classList.add('active');
                 rawContent.textContent = `${currentLang==='ar'?'بحث:':'Search:'} ${val}`;
                 const cleanVal = val.trim().replace(/\D/g, '');
-                let res = [];
-                if (USE_MOCK_DB) {
-                    res = MOCK_DB.filter(r => {
-                        const dbPhone = r.phone.replace(/\D/g, '');
-                        return dbPhone === cleanVal || r.patient_name === val.trim();
-                    });
+                const db = getDatabase();
+                let res = db.filter(r => {
+                    const dbPhone = r.phone.replace(/\D/g, '');
+                    return dbPhone === cleanVal || r.patient_name === val.trim();
+                });
+                
+                if (res.length > 0) {
+                    const record = res[0];
+                    if (record.status === 'confirmed') {
+                        showAlreadyScanned(record, val);
+                    } else {
+                        updateStatusInDB(record.id, 'confirmed');
+                        showToast(translations[currentLang].toastConfirmed, 'success');
+                        showFound(record, val);
+                    }
+                } else {
+                    showNotFound(val, val, cleanVal);
                 }
-                res.length > 0 ? showFound(res[0], val) : showNotFound(val, val, cleanVal);
             }, 400);
+        }
+
+        // 🗑️ مسح سجل البحث
+        function clearHistory() {
+            history = [];
+            localStorage.removeItem('scan_history');
+            renderHistory();
         }
 
         // 📋 Utilities
@@ -424,8 +537,14 @@
             const div = document.createElement('div'); div.textContent = str; return div.innerHTML;
         }
         function addToHistory(data) {
+            // إضافة للسجل فقط إذا لم يكن موجوداً
             history = history.filter(h => h.id !== data.id);
-            history.unshift({id:data.id, name:data.patient_name, time:new Date().toLocaleTimeString(currentLang==='ar'?'ar':'en-US')});
+            history.unshift({
+                id: data.id, 
+                name: data.patient_name, 
+                time: new Date().toLocaleTimeString(currentLang==='ar'?'ar':'en-US'),
+                status: 'confirmed'
+            });
             if (history.length > 5) history.pop();
             localStorage.setItem('scan_history', JSON.stringify(history));
             renderHistory();
@@ -434,14 +553,20 @@
             const box = $('history-box'), list = $('history-list');
             if (history.length === 0) { box.style.display = 'none'; return; }
             box.style.display = 'block';
-            list.innerHTML = history.map(h => `<div class="h-item"><span style="font-weight:500">${escapeHtml(h.name)}</span><small class="h-time">${h.time}</small></div>`).join('');
+            list.innerHTML = history.map(h => `
+                <div class="h-item">
+                    <span style="font-weight:500">${escapeHtml(h.name)}</span>
+                    <small class="h-time" style="color:var(--success)">✓ ${h.time}</small>
+                </div>`).join('');
         }
 
         // 🚀 Init
         window.addEventListener('DOMContentLoaded', () => {
-            applyTheme(currentTheme); applyLanguage(currentLang); renderHistory();
+            applyTheme(currentTheme); 
+            applyLanguage(currentLang); 
+            renderHistory();
             
-            // Event Listeners (Fixed - no inline onclick issues)
+            // Event Listeners
             themeToggle.onclick = toggleTheme;
             langToggle.onclick = toggleLanguage;
             btnStart.onclick = startScan;
@@ -458,7 +583,9 @@
             $('manual-input').oninput = (e) => manualSearch(e.target.value);
             
             // Visibility change
-            document.addEventListener('visibilitychange', () => { if (document.hidden && scanning) stopScan(); });
+            document.addEventListener('visibilitychange', () => { 
+                if (document.hidden && scanning) stopScan(); 
+            });
         });
     </script>
 </body>
