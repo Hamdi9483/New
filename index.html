@@ -91,13 +91,6 @@
         .search-icon { position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:1rem; pointer-events:none; }
         [dir="rtl"] .search-icon { left:auto; right:16px; }
         
-        /* History */
-        .history { margin-top:20px; }
-        .history-title { font-size:0.95rem; color:var(--text-muted); margin-bottom:12px; display:flex; align-items:center; gap:6px; font-weight:600; }
-        .h-item { background:var(--bg-card); padding:12px 16px; border-radius:12px; margin-bottom:10px; border:1px solid var(--border); font-size:0.9rem; display:flex; justify-content:space-between; align-items:center; transition:transform 0.2s; }
-        .h-item:hover { transform:translateX(4px); border-color:var(--primary); }
-        .h-time { font-size:0.8rem; color:var(--text-muted); background:var(--bg-input); padding:4px 10px; border-radius:20px; }
-        
         /* Note & Toast */
         .note { font-size:0.8rem; color:var(--text-muted); text-align:center; margin-top:24px; line-height:1.6; background:var(--bg-card); padding:14px; border-radius:14px; border:1px solid var(--border); }
         .note code { background:var(--bg-input); padding:4px 10px; border-radius:6px; direction:ltr; display:inline-block; margin-top:6px; font-size:0.85rem; color:var(--primary); }
@@ -162,11 +155,8 @@
             <i class="fas fa-search search-icon"></i>
             <input type="text" class="manual" id="manual-input" data-i18n-placeholder="searchPlaceholder" placeholder="🔍 Search by name or phone...">
         </div>
-        
-        <div class="history" id="history-box" style="display:none">
-            <div class="history-title"><i class="fas fa-history"></i> <span data-i18n="recentScans">Recent Scans</span></div>
-            <div id="history-list"></div>
-        </div>
+
+        <!-- ✅ تم إزالة قسم التاريخ من الواجهة حسب الطلب -->
 
     </div>
 
@@ -188,7 +178,7 @@
                 alreadyScanned: "⚠️ هذا الاسم مُمسوح سابقاً", alreadyScannedSub: "تم تأكيد حضور هذا المريض مسبقاً",
                 extracted: " ما تم استخراجه من الرمز:", name: "الاسم", phone: "الهاتف", unspecified: "غير محدد",
                 formatHint: "💡 لضمان التطابق: يجب أن يحتوي الـ QR على الصيغة:",
-                recentScans: " آخر الفحوصات", searchPlaceholder: " بحث يدوي بالاسم أو الهاتف...",
+                searchPlaceholder: " بحث يدوي بالاسم أو الهاتف...",
                 patient: "👤 المريض", date: "📅 التاريخ", time: "🕐 الوقت", status: "📋 الحالة",
                 confirmed: "🟢 مؤكد", pending: "🟡 قيد الانتظار",
                 toastCameraError: "❌ فشل فتح الكاميرا", toastLibraryError: "⚠️ لم يتم تحميل مكتبة jsQR",
@@ -206,7 +196,7 @@
                 alreadyScanned: "⚠️ Already Scanned", alreadyScannedSub: "This patient was already confirmed",
                 extracted: " Extracted from QR:", name: "Name", phone: "Phone", unspecified: "Unspecified",
                 formatHint: "💡 For matching: QR should contain format:",
-                recentScans: " Recent Scans", searchPlaceholder: " Search by name or phone...",
+                searchPlaceholder: " Search by name or phone...",
                 patient: "👤 Patient", date: "📅 Date", time: "🕐 Time", status: "📋 Status",
                 confirmed: "🟢 Confirmed", pending: "🟡 Pending",
                 toastCameraError: "❌ Failed to open camera", toastLibraryError: "⚠️ jsQR library not loaded",
@@ -218,9 +208,8 @@
 
         // ⚙️ Config
         const USE_MOCK_DB = true;
-        const STORAGE_KEY = 'qr_appointments_db'; // مفتاح تخزين الحالة
+        const STORAGE_KEY = 'qr_appointments_db';
         
-        // قاعدة البيانات الأولية
         const INITIAL_DB = [
             {id:'t1',patient_name:'أحمد محمد العلي',phone:'966501234567',appointment_date:'2026-04-10',appointment_time:'09:00',status:'pending'},
             {id:'t2',patient_name:'سارة خالد',phone:'966559876543',appointment_date:'2026-04-10',appointment_time:'10:30',status:'pending'},
@@ -229,19 +218,18 @@
             {id:'t5',patient_name:'Sarah Khaled',phone:'966559876543',appointment_date:'2026-04-10',appointment_time:'10:30',status:'pending'}
         ];
 
-        // 🗄️ إدارة قاعدة البيانات مع الحفظ المحلي
+        // 🗄️ Database Management
         function getDatabase() {
             if (!USE_MOCK_DB) return INITIAL_DB;
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // دمج مع البيانات الأولية في حال إضافة سجلات جديدة
                 return INITIAL_DB.map(init => {
                     const existing = parsed.find(p => p.id === init.id);
                     return existing ? {...init, status: existing.status} : init;
                 });
             }
-            return JSON.parse(JSON.stringify(INITIAL_DB)); // نسخة عميقة
+            return JSON.parse(JSON.stringify(INITIAL_DB));
         }
 
         function saveDatabase(db) {
@@ -264,7 +252,6 @@
         // State
         let currentLang = localStorage.getItem('qr_lang') || 'ar';
         let currentTheme = localStorage.getItem('qr_theme') || 'light';
-        let history = JSON.parse(localStorage.getItem('scan_history') || '[]');
         let video, canvas, ctx, scanning = false, stream = null;
         let lastScannedCode = '', scanCooldown = false;
 
@@ -302,7 +289,6 @@
             });
             localStorage.setItem('qr_lang', lang);
             showToast(lang === 'ar' ? '🇸🇦 العربية' : '🇬🇧 English', 'success');
-            renderHistory();
         }
         function toggleLanguage() {
             currentLang = currentLang === 'ar' ? 'en' : 'ar';
@@ -389,11 +375,9 @@
             
             if (results.length > 0) {
                 const record = results[0];
-                // 🚫 التحقق مما إذا كان ممسوحاً مسبقاً
                 if (record.status === 'confirmed') {
                     showAlreadyScanned(record, raw);
                 } else {
-                    // ✅ تحديث الحالة إلى confirmed وحفظها
                     updateStatusInDB(record.id, 'confirmed');
                     showToast(translations[currentLang].toastConfirmed, 'success');
                     showFound(record, raw);
@@ -403,7 +387,7 @@
             }
         }
 
-        // ⚠️ عرض رسالة "ممسوح سابقاً"
+        // ⚠️ Already Scanned
         function showAlreadyScanned(data, raw) {
             const t = translations[currentLang];
             resIcon.className = 'res-icon warn'; 
@@ -439,7 +423,6 @@
                     </small>
                 </div>`;
             resultBox.style.display = 'block';
-            // لا نضيف للسجل عند المسح المكرر
         }
 
         function showFound(data, raw) {
@@ -464,7 +447,6 @@
                 </div>`;
             resultBox.style.display = 'block';
             resultBox.querySelector('.btn-copy').onclick = (e) => { e.stopPropagation(); copyToClipboard(raw); };
-            addToHistory(data);
         }
 
         function showNotFound(raw, name, phone) {
@@ -488,14 +470,11 @@
             resultBox.style.display = 'block';
         }
 
-        // 🔍 Manual Search - مع مسح السجل عند بحث جديد
+        // 🔍 Manual Search
         let manualTimeout;
         function manualSearch(val) {
             clearTimeout(manualTimeout);
             if (val.trim().length < 2) return;
-            
-            // 🗑️ مسح سجل البحث عند بدء بحث جديد
-            clearHistory();
             
             manualTimeout = setTimeout(async () => {
                 rawBox.classList.add('active');
@@ -522,13 +501,6 @@
             }, 400);
         }
 
-        // 🗑️ مسح سجل البحث
-        function clearHistory() {
-            history = [];
-            localStorage.removeItem('scan_history');
-            renderHistory();
-        }
-
         // 📋 Utilities
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => showToast(translations[currentLang].toastCopied, 'success'));
@@ -536,35 +508,17 @@
         function escapeHtml(str) {
             const div = document.createElement('div'); div.textContent = str; return div.innerHTML;
         }
-        function addToHistory(data) {
-            // إضافة للسجل فقط إذا لم يكن موجوداً
-            history = history.filter(h => h.id !== data.id);
-            history.unshift({
-                id: data.id, 
-                name: data.patient_name, 
-                time: new Date().toLocaleTimeString(currentLang==='ar'?'ar':'en-US'),
-                status: 'confirmed'
-            });
-            if (history.length > 5) history.pop();
-            localStorage.setItem('scan_history', JSON.stringify(history));
-            renderHistory();
-        }
+        
+        // ✅ تم تعطيل دالة السجل حسب الطلب
         function renderHistory() {
-            const box = $('history-box'), list = $('history-list');
-            if (history.length === 0) { box.style.display = 'none'; return; }
-            box.style.display = 'block';
-            list.innerHTML = history.map(h => `
-                <div class="h-item">
-                    <span style="font-weight:500">${escapeHtml(h.name)}</span>
-                    <small class="h-time" style="color:var(--success)">✓ ${h.time}</small>
-                </div>`).join('');
+            // History section is hidden from UI
+            return;
         }
 
         // 🚀 Init
         window.addEventListener('DOMContentLoaded', () => {
             applyTheme(currentTheme); 
             applyLanguage(currentLang); 
-            renderHistory();
             
             // Event Listeners
             themeToggle.onclick = toggleTheme;
