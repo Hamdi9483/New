@@ -156,8 +156,7 @@
             <input type="text" class="manual" id="manual-input" data-i18n-placeholder="searchPlaceholder" placeholder="🔍 Search by name or phone...">
         </div>
 
-        <!-- ✅ تم إزالة قسم التاريخ من الواجهة حسب الطلب -->
-
+        
     </div>
 
     <div class="toast" id="toast">
@@ -288,7 +287,7 @@
                 if (translations[lang][key]) el.placeholder = translations[lang][key];
             });
             localStorage.setItem('qr_lang', lang);
-            showToast(lang === 'ar' ? '🇸🇾 العربية' : '🇬🇧 English', 'success');
+            showToast(lang === 'ar' ? 'SA العربية' : '🇬🇧 English', 'success');
         }
         function toggleLanguage() {
             currentLang = currentLang === 'ar' ? 'en' : 'ar';
